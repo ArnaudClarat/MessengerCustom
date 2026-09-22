@@ -1,19 +1,29 @@
 # On part d'une image officielle PHP 8.2 avec Apache
-FROM php:8.2-apache
+FROM php:8.5-apache
 
 # 1. Installation des dépendances système (nécessaires pour Postgres, Composer et Node)
 RUN apt-get update && apt-get install -y \
     libpq-dev \
+    libzip-dev \
+    libonig-dev \
     unzip \
     curl \
-    git
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 # 2. Installation de Node.js (indispensable pour compiler Vue/React avec Vite)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get update \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 # 3. Installation des extensions PHP pour Laravel et PostgreSQL (Neon)
-RUN docker-php-ext-install pdo pdo_pgsql
+RUN docker-php-ext-install \
+    pdo \
+    pdo_pgsql \
+    mbstring \
+    xml \
+    zip
 
 # 4. Activation de l'URL Rewriting (obligatoire pour le routeur Laravel)
 RUN a2enmod rewrite
@@ -28,13 +38,32 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # 7. Copie de tout le code de ton projet dans le conteneur
 WORKDIR /var/www/html
+
+# Dépendances PHP
+COPY composer.json composer.lock ./
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader
+
+# Dépendances frontend
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Code de l'application
 COPY . .
 
-# --- ATTENTION --- 
-# Tant que tu n'as pas généré le vrai projet Laravel (avec composer.json et package.json), 
-# laisse les 3 lignes ci-dessous COMMENTÉES pour que ton "Hello World" basique puisse se déployer.
-# Dès que tu auras ton vrai projet, DÉCOMMENTE-LES.
+# Compilation Vite
+RUN npm run build
 
-# RUN composer install --optimize-autoloader --no-dev
-# RUN npm install && npm run build
-# RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# Permissions Laravel
+RUN chown -R www-data:www-data \
+    /var/www/html/storage \
+    /var/www/html/bootstrap/cache
+
+EXPOSE 80
+
+# Render exécutera les migrations au démarrage,
+# puis lancera Apache.
+CMD ["sh", "-c", "php artisan migrate --force && apache2-foreground"]
