@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libzip-dev \
     libonig-dev \
+    libxml2-dev \
     unzip \
     curl \
     git \
@@ -29,7 +30,7 @@ RUN docker-php-ext-install \
 RUN a2enmod rewrite
 
 # 5. On indique à Apache que la racine du site est le dossier "public" de Laravel
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
