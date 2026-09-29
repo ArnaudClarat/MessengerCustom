@@ -39,9 +39,9 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # 7. Copie de tout le code de ton projet dans le conteneur
 WORKDIR /var/www/html
+COPY . .
 
 # Dépendances PHP
-COPY composer.json composer.lock ./
 RUN composer install \
     --no-dev \
     --no-interaction \
@@ -51,9 +51,6 @@ RUN composer install \
 # Dépendances frontend
 COPY package.json package-lock.json ./
 RUN npm ci
-
-# Code de l'application
-COPY . .
 
 # Compilation Vite
 RUN npm run build
