@@ -51,6 +51,11 @@ RUN composer install \
 # Dépendances frontend
 RUN npm ci
 
+# Create missing entry files if they don't exist
+RUN mkdir -p resources/css resources/js && \
+    touch resources/css/app.css && \
+    touch resources/js/app.js
+
 # Compilation Vite
 RUN npm run build
 
