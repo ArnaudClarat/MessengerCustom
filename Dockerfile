@@ -49,7 +49,6 @@ RUN composer install \
     --optimize-autoloader
 
 # Dépendances frontend
-COPY package.json package-lock.json ./
 RUN npm ci
 
 # Compilation Vite
