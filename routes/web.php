@@ -7,12 +7,10 @@ use App\Http\Controllers\Auth\OAuthController;
 use App\Http\Controllers\ConversationController;
 
 
-
+// Landing page publique de MessengerCustom
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'message' => 'MessengerCustom fonctionne avec Inertia + Vue + Tailwind !',
-    ]);
-});
+    return Inertia::render('Landing');
+})->name('landing');
 
 // Authentification : routes accessibles sans connexion
 Route::middleware('guest')->group(function () {

@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Events\MessageSent; // Import de l'événement qui diffusera les messages via Reverb.
 
 class ConversationController extends Controller
 {
@@ -29,8 +30,7 @@ class ConversationController extends Controller
         // 2. RÉCUPÉRER SES CONVERSATIONS
         // ==================================================
 
-        // La relation conversations() du modèle User
-        // permet de récupérer uniquement les conversations
+        // La relation conversations() du modèle User permet de récupérer uniquement les conversations
         // dont l'utilisateur est membre.
 
         $conversations = $user->conversations()
@@ -39,9 +39,7 @@ class ConversationController extends Controller
             ->with([
 
                 // Participants de chaque conversation.
-                //
-                // Cette relation doit exister dans
-                // app/Models/Conversation.php.
+                // Cette relation doit exister dans App/Models/Conversation.php.
                 'members',
 
                 // Messages de chaque conversation.
@@ -77,8 +75,7 @@ class ConversationController extends Controller
                 // Nom affiché dans l'interface.
                 $displayName = $conversation->name;
 
-                // Pour une conversation directe,
-                // afficher le nom de l'autre utilisateur.
+                // Pour une conversation directe, afficher le nom de l'autre utilisateur.
                 if ($conversation->type === 'direct') {
 
                     $otherUser = $members->first(
@@ -103,8 +100,7 @@ class ConversationController extends Controller
                     $displayName = 'Canal de discussion';
                 }
 
-                // Transformer les messages dans le format
-                // attendu par notre composant Vue.
+                // Transformer les messages dans le format attendu par notre composant Vue.
                 $messages = $conversation->messages->map(
                     function ($message) use ($user) {
 
@@ -181,11 +177,8 @@ class ConversationController extends Controller
         // 2. VÉRIFIER L'ACCÈS À LA CONVERSATION
         // ==================================================
 
-        // Rechercher la conversation uniquement parmi celles
-        // auxquelles l'utilisateur connecté appartient.
-        //
-        // Si elle n'existe pas ou si l'utilisateur n'est pas
-        // membre, Laravel renvoie une erreur HTTP 404.
+        // Rechercher la conversation uniquement parmi celles auxquelles l'utilisateur connecté appartient.
+        // Si elle n'existe pas ou si l'utilisateur n'est pas membre, Laravel renvoie une erreur HTTP 404.
 
         $conversationModel = $user->conversations()
             ->where('conversations.id', $conversation)
@@ -212,20 +205,35 @@ class ConversationController extends Controller
         // La conversation et l'expéditeur proviennent du
         // serveur : le navigateur ne peut pas les imposer.
 
-        $conversationModel->messages()->create([
+        // Enregistrer le message dans PostgreSQL.
+
+        // La méthode create() retourne une instance du modèle Message.
+        // Nous la conservons dans $message pour pouvoir la diffuser.
+        $message = $conversationModel->messages()->create([
+            // L'expéditeur est toujours l'utilisateur authentifié.
             'sender_id' => $user->id,
+
+            // Type de message défini par notre application.
             'type' => 'user',
+
+            // Contenu préalablement validé par Laravel.
             'content' => $validated['content'],
         ]);
+
+        // Déclencher l'événement après l'enregistrement.
+        // Comme MessageSent implémente ShouldBroadcastNow, Laravel transmet immédiatement l'événement à Reverb.
+        MessageSent::dispatch($message);
+
+        // Rediriger vers la liste des conversations.
+        // Inertia pourra actualiser les données après l'envoi.
+        return redirect()->route('conversations.index');
 
 
         // ==================================================
         // 5. RETOURNER À LA PAGE DES CONVERSATIONS
         // ==================================================
 
-        // Inertia pourra actualiser les données et afficher
-        // le nouveau message après la redirection.
-
+        // Inertia pourra actualiser les données et afficher le nouveau message après la redirection.
         return redirect()->route('conversations.index');
     }
 

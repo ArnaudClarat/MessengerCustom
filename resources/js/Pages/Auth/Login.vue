@@ -21,6 +21,9 @@ function submit() {
       <p class="mb-6 text-sm text-slate-500">
         Connectez-vous à MessengerCustom.
       </p>
+      <Link href="/" class="text-sm text-blue-600 hover:underline">
+        ← Retour à l'accueil
+      </Link>
 
       <form @submit.prevent="submit" class="space-y-5">
         <div>

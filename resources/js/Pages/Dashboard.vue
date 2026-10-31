@@ -1,4 +1,3 @@
-
 <script setup>
 // ======================================================
 // 1. IMPORTATION DES COMPOSANTS INERTIA
@@ -105,29 +104,52 @@ function logout() {
           et tes messages.
         </p>
 
-        <!-- Navigation Inertia vers Conversations/Index.vue -->
-        <Link
-            href="/conversations"
-            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
-        >
-          <!-- Icône messagerie -->
-          <svg
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.8"
-              aria-hidden="true"
-          >
-            <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M8 10h8M8 14h5m-1 7a9 9 0 1 0-9-9c0 1.6.42 3.1 1.16 4.4L3 21l4.6-1.16A9 9 0 0 0 12 21Z"
-            />
-          </svg>
+        <!--
+          Boutons d'action :
+          - flex     : aligne les boutons sur une ligne
+          - gap-3    : ajoute 12 px d'espace entre les boutons
+          - flex-wrap: passe à la ligne sur les petits écrans
+        -->
+        <div class="flex flex-wrap items-center gap-3">
 
-          Ouvrir la messagerie
-        </Link>
+          <!-- Navigation Inertia vers Conversations/Index.vue -->
+          <Link
+              href="/conversations"
+              class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
+          >
+            <!-- Icône messagerie -->
+            <svg
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.8"
+                aria-hidden="true"
+            >
+              <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M8 10h8M8 14h5m-1 7a9 9 0 1 0-9-9c0 1.6.42 3.1 1.16 4.4L3 21l4.6-1.16A9 9 0 0 0 12 21Z"
+              />
+            </svg>
+
+            Ouvrir la messagerie
+          </Link>
+
+          <!--
+            Navigation Inertia vers la landing page publique.
+            Même hauteur (px-5 py-3) que le bouton de la messagerie.
+            Ajouter "ml-auto" à la classe pour placer ce bouton
+            tout à droite de la carte.
+          -->
+          <Link
+              href="/"
+              class="inline-flex items-center rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Accueil
+          </Link>
+
+        </div>
 
       </div>
 

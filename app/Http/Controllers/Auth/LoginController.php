@@ -47,9 +47,9 @@ class LoginController extends Controller
 
 
     /**
-     * Déconnecte l'utilisateur et invalide sa session.
+     * Déconnecte l'utilisateur, invalide sa session et retour à la landing page.
     */
-    public function logout(Request $request): RedirectResponse
+    public function logout(Request $request)
     {
         Auth::logout();
 

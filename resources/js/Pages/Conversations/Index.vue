@@ -3,8 +3,11 @@
 // ======================================================
 // 1. IMPORTATION DES OUTILS VUE ET INERTIA
 // ======================================================
-
-import { computed, ref, watch } from 'vue'
+// computed : créer des valeurs calculées automatiquement.
+// ref : déclarer des données réactives.
+// watch : surveiller les changements.
+// onUnmounted : nettoyer les abonnements à la fermeture du composant.
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 
 
@@ -19,11 +22,20 @@ const props = defineProps({
   conversationsFromDb: { type: Array, default: () => [] },
 })
 
-// computed reste synchronisé avec les nouvelles props Inertia.
-// Le contrôleur Laravel doit fournir name, type, members et messages.
-const conversations = computed(() => props.conversationsFromDb)
+// Créer une copie indépendante des conversations reçues de Laravel.
+// La conversion JSON évite l'erreur de clonage des proxys Vue.
+const conversations = ref(
+    JSON.parse(JSON.stringify(props.conversationsFromDb ?? []))
+)
 
-
+// Actualiser les conversations lorsque Laravel/Inertia
+// transmet de nouvelles données à notre composant.
+watch(
+    () => props.conversationsFromDb,
+    (updated) => {
+      conversations.value = JSON.parse(JSON.stringify(updated ?? []))
+    }
+)
 // ======================================================
 // 3. VARIABLES RÉACTIVES
 // ======================================================
@@ -266,6 +278,109 @@ function logout() {
   router.post('/logout')
 }
 
+
+// ======================================================
+// 13. RÉCEPTION DES MESSAGES EN TEMPS RÉEL (LARAVEL REVERB)
+// ======================================================
+
+// Conserver les identifiants des conversations déjà écoutées.
+// Set évite de créer plusieurs abonnements pour la même conversation.
+const subscribedConversationIds = new Set()
+
+/**
+ * Recevoir un message transmis par l'événement Laravel MessageSent.
+ * Les données de l'événement correspondent à broadcastWith() côté PHP.
+ */
+function receiveMessage(event) {
+  // Rechercher la conversation à laquelle appartient le message reçu.
+  const conversation = conversations.value.find(
+      item => String(item.id) === String(event.conversation_id)
+  )
+
+  // Ne rien afficher si cette conversation n'est pas dans notre liste.
+  if (!conversation) return
+
+  // Préparer le tableau si la conversation ne contient encore aucun message.
+  if (!Array.isArray(conversation.messages)) {
+    conversation.messages = []
+  }
+
+  // Un rechargement Inertia et un événement WebSocket peuvent arriver ensemble.
+  // Comparer les identifiants pour éviter d'afficher deux fois le même message.
+  const alreadyExists = conversation.messages.some(
+      message => String(message.id) === String(event.id)
+  )
+  if (alreadyExists) return
+
+  // Ajouter le message dans le tableau réactif : Vue actualise l'interface.
+  conversation.messages.push({
+    id: event.id,
+    author: event.author,
+    text: event.text,
+
+    // Les messages de l'utilisateur connecté apparaissent à droite.
+    mine: String(event.sender_id) === String(props.user.id),
+    date: event.date,
+  })
+}
+
+/**
+ * Écouter toutes les conversations auxquelles l'utilisateur appartient.
+ * Cela met aussi à jour les aperçus de la barre latérale lorsqu'un message
+ * arrive dans une conversation qui n'est pas actuellement sélectionnée.
+ */
+function synchronizeSubscriptions() {
+  // Éviter une erreur si le client Echo n'est pas encore initialisé.
+  if (!window.Echo) {
+    console.warn('Laravel Echo n’est pas initialisé : vérifier resources/js/app.js')
+    return
+  }
+
+  // Convertir les UUID en chaînes pour effectuer des comparaisons fiables.
+  const currentIds = new Set(
+      conversations.value.map(conversation => String(conversation.id))
+  )
+
+  // Quitter les canaux des conversations supprimées ou devenues inaccessibles.
+  for (const id of subscribedConversationIds) {
+    if (!currentIds.has(id)) {
+      window.Echo.leave(`conversation.${id}`)
+      subscribedConversationIds.delete(id)
+    }
+  }
+
+  // S'abonner une seule fois au canal privé de chaque conversation.
+  for (const id of currentIds) {
+    if (subscribedConversationIds.has(id)) continue
+
+    window.Echo.private(`conversation.${id}`)
+        // Le point initial correspond au nom défini par broadcastAs() en PHP.
+        .listen('.message.sent', receiveMessage)
+
+    subscribedConversationIds.add(id)
+  }
+}
+
+// S'abonner immédiatement, puis réagir aux changements de conversations.
+// La liste des UUID est utilisée pour éviter de recréer les abonnements
+// lorsqu'un simple message modifie le contenu d'une conversation.
+watch(
+    () => conversations.value.map(conversation => conversation.id),
+    synchronizeSubscriptions,
+    { immediate: true }
+)
+
+// Nettoyer les canaux lorsque Vue détruit ce composant (navigation Inertia).
+onUnmounted(() => {
+  if (window.Echo) {
+    for (const id of subscribedConversationIds) {
+      window.Echo.leave(`conversation.${id}`)
+    }
+  }
+
+  subscribedConversationIds.clear()
+})
+
 </script>
 
 
@@ -305,6 +420,14 @@ function logout() {
             class="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-white sm:px-4"
         >
           Dashboard
+        </Link>
+
+        <!-- Lien Inertia : retour à la landing page publique. -->
+        <Link
+            href="/"
+            class="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-white sm:px-4"
+        >
+          Accueil
         </Link>
 
         <!-- Nom et avatar de l'utilisateur connecté -->
@@ -803,3 +926,4 @@ function logout() {
   </div>
 
 </template>
+
