@@ -22,6 +22,7 @@ class Conversation extends Model
     // Les attributs qui pourront être renseignés
     // explicitement lors de la création.
     protected $fillable = [
+        'id',
         'org_id',
         'type',
         'visibility',

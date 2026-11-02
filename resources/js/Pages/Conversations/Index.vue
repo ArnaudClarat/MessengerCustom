@@ -15,11 +15,15 @@ import { Head, Link, router } from '@inertiajs/vue3'
 // 2. DONNÉES FOURNIES PAR LARAVEL / INERTIA
 // ======================================================
 
-// Le contrôleur transmet l'utilisateur authentifié et les
-// conversations préparées pour l'affichage. Aucune donnée fictive.
+// Le contrôleur transmet l'utilisateur authentifié et les conversations préparées pour l'affichage.
 const props = defineProps({
   user: { type: Object, required: true },
+
+  // Conversations de l'utilisateur connecté.
   conversationsFromDb: { type: Array, default: () => [] },
+
+  // Utilisateurs autorisés comme destinataires.
+  availableUsers: { type: Array, default: () => [] },
 })
 
 // Créer une copie indépendante des conversations reçues de Laravel.
@@ -60,6 +64,87 @@ watch(conversations, (items) => {
     selectedId.value = items[0]?.id ?? null
   }
 })
+
+
+// ======================================================
+// CRÉATION D'UNE CONVERSATION INDIVIDUELLE
+// ======================================================
+
+// Afficher ou masquer la fenêtre de création.
+const showNewConversation = ref(false)
+
+// UUID du destinataire sélectionné dans la liste.
+const selectedRecipientId = ref('')
+
+// Éviter les doubles soumissions et afficher les erreurs de validation.
+const creatingConversation = ref(false)
+const creationError = ref('')
+
+// Mémoriser le destinataire pour sélectionner la discussion après actualisation.
+// La sélection par nom est adaptée à la démonstration ; pour une identification
+// garantie, Laravel devra retourner l'UUID de la conversation créée.
+const pendingRecipientName = ref(null)
+
+function openNewConversation() {
+  selectedRecipientId.value = ''
+  creationError.value = ''
+  showNewConversation.value = true
+}
+
+function closeNewConversation() {
+  if (creatingConversation.value) return
+  showNewConversation.value = false
+}
+
+function createConversation() {
+  // Ne pas envoyer une demande vide ou une deuxième requête simultanée.
+  if (!selectedRecipientId.value || creatingConversation.value) return
+
+  creationError.value = ''
+
+  // Conserver le nom du destinataire pendant la redirection Inertia.
+  const recipient = props.availableUsers.find(
+      user => String(user.id) === String(selectedRecipientId.value)
+  )
+  pendingRecipientName.value = recipient?.display_name ?? null
+
+  router.post('/conversations', {
+    recipient_id: selectedRecipientId.value,
+  }, {
+    preserveScroll: true,
+
+    onStart: () => {
+      creatingConversation.value = true
+    },
+
+    onSuccess: (page) => {
+      showNewConversation.value = false
+      selectedRecipientId.value = ''
+      search.value = ''
+
+      // La redirection renvoie les conversations mises à jour.
+      // Sélectionner celle du destinataire lorsqu'un nom unique correspond.
+      const matches = (page.props.conversationsFromDb ?? []).filter(
+          conversation => conversation.type === 'direct' &&
+              conversation.name === pendingRecipientName.value
+      )
+      if (matches.length === 1) {
+        selectedId.value = matches[0].id
+      }
+      pendingRecipientName.value = null
+    },
+
+    onError: (errors) => {
+      pendingRecipientName.value = null
+      creationError.value = errors.recipient_id
+          ?? 'Impossible de créer cette conversation.'
+    },
+
+    onFinish: () => {
+      creatingConversation.value = false
+    },
+  })
+}
 
 
 // ======================================================
@@ -486,9 +571,19 @@ onUnmounted(() => {
         <!-- En-tête de la barre latérale -->
         <div class="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4">
 
-          <h2 class="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
-            Conversations
-          </h2>
+          <!-- Titre et action de création d'une discussion individuelle. -->
+          <div class="mb-3 flex items-center justify-between gap-2">
+            <h2 class="text-xs font-semibold uppercase tracking-widest text-slate-400">
+              Conversations
+            </h2>
+            <button
+                type="button"
+                @click="openNewConversation"
+                class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+            >
+              + Nouvelle discussion
+            </button>
+          </div>
 
           <!-- Barre de recherche avec icône -->
           <div class="relative">
@@ -922,6 +1017,88 @@ onUnmounted(() => {
       </section>
 
     </main>
+
+    <!-- ==================================================
+         FENÊTRE MODALE : NOUVELLE DISCUSSION INDIVIDUELLE
+         ================================================== -->
+    <div
+        v-if="showNewConversation"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+        @click.self="closeNewConversation"
+        @keydown.esc="closeNewConversation"
+    >
+      <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-conversation-title"
+          class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+      >
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <h2 id="new-conversation-title" class="text-lg font-semibold text-slate-900">
+            Nouvelle discussion
+          </h2>
+          <button
+              type="button"
+              aria-label="Fermer la fenêtre"
+              :disabled="creatingConversation"
+              @click="closeNewConversation"
+              class="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- L'envoi utilise la route POST /conversations de Laravel. -->
+        <form @submit.prevent="createConversation">
+          <label for="new-conversation-recipient" class="mb-2 block text-sm font-medium text-slate-700">
+            Choisir un destinataire
+          </label>
+          <select
+              id="new-conversation-recipient"
+              v-model="selectedRecipientId"
+              :disabled="creatingConversation || availableUsers.length === 0"
+              required
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+          >
+            <option disabled value="">Sélectionner un utilisateur</option>
+            <option
+                v-for="recipient in availableUsers"
+                :key="recipient.id"
+                :value="recipient.id"
+            >
+              {{ recipient.display_name }}
+            </option>
+          </select>
+
+          <p v-if="availableUsers.length === 0" class="mt-3 text-sm text-slate-500">
+            Aucun utilisateur disponible dans votre organisation.
+          </p>
+
+          <!-- Afficher les erreurs de validation renvoyées par Inertia. -->
+          <p v-if="creationError" role="alert" class="mt-3 text-sm text-red-600">
+            {{ creationError }}
+          </p>
+
+          <div class="mt-6 flex justify-end gap-3">
+            <button
+                type="button"
+                :disabled="creatingConversation"
+                @click="closeNewConversation"
+                class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+                type="submit"
+                :disabled="!selectedRecipientId || creatingConversation"
+                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {{ creatingConversation ? 'Création...' : 'Créer la discussion' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
 
   </div>
 
