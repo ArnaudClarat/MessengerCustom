@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 use Tests\Support\Schema\CreateMessagingSchema;
 
 // Charger la classe utilisée pour créer les tables SQLite.
-require_once __DIR__ . '/../Support/Schema/CreateMessagingSchema.php';
+// require_once __DIR__ . '/../Support/Schema/CreateMessagingSchema.php';
 
 
 // ======================================================

@@ -1,5 +1,5 @@
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({
   email: '',
@@ -12,6 +12,7 @@ function submit() {
 </script>
 
 <template>
+  <Head title="Connexion — MessengerCustom" />
   <div class="flex min-h-screen items-center justify-center bg-slate-100 px-4">
     <div class="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
       <h1 class="mb-2 text-2xl font-bold text-slate-800">
@@ -72,6 +73,12 @@ function submit() {
           {{ form.processing ? 'Connexion...' : 'Se connecter' }}
         </button>
       </form>
+
+      <!-- Accès à la création d'un compte sans modifier la connexion existante. -->
+      <p class="mt-5 text-center text-sm text-slate-600">
+        Pas encore de compte ?
+        <Link href="/register" class="font-semibold text-indigo-600 hover:underline">Créer un compte</Link>
+      </p>
 
       <div class="my-6 flex items-center gap-3">
         <div class="h-px flex-1 bg-slate-200"></div>

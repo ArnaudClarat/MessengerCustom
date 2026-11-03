@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Conversation;
+use Illuminate\Contracts\Support\ValidatedData;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -10,7 +11,7 @@ use App\Events\MessageSent; // Import de l'événement qui diffusera les message
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-
+use Illuminate\Support\Str;
 
 class ConversationController extends Controller
 {
@@ -198,15 +199,6 @@ class ConversationController extends Controller
      * Crée une conversation individuelle entre deux utilisateurs.
      *
      * Vérifications :
-     * - L'utilisateur doit être connecté.
-     * - Le destinataire doit exister et être différent de l'expéditeur.
-     * - Les deux utilisateurs doivent appartenir à la même organisation active.
-     * - Une conversation directe existante ne doit pas être dupliauée.
-     */
-    /**
-     * Crée une conversation individuelle entre deux utilisateurs.
-     *
-     * Vérifications :
      * - L'utilisateur doit être authentifié.
      * - Le destinataire doit exister et être différent de l'expéditeur.
      * - Les deux utilisateurs doivent appartenir à la même organisation active.
@@ -310,6 +302,150 @@ class ConversationController extends Controller
         return redirect()->route('conversations.index');
     }
 
+
+
+    /**
+     * Crée une nouvelle discussion de groupe.
+     *
+     * Règles :
+     * - Le créateur doit être authentifié.
+     * - Le groupe doit avoir un nom.
+     * - Au moins deux autres utilisateurs sont nécessaires.
+     * - Tous les participants doivent appartenir à
+     *   une même organisation active.
+     * - Le créateur devient administrateur du groupe.
+     */
+    public function storeGroup(Request $request)
+    {
+        // ==================================================
+        // 1. UTILISATEUR AUTHENTIFIÉ
+        // ==================================================
+
+        $user = $request->user();
+
+        // ==================================================
+        // 2. VALIDATION DES DONNÉES
+        // ==================================================
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:100',
+            ],
+            'participant_ids' => [
+                'required',
+                'array',
+                'min:2',
+            ],
+            'participant_ids.*' => [
+                'required',
+                'uuid',
+                'distinct',
+                'exists:users,id',
+            ],
+        ]);
+
+        $participantIds = $validated['participant_ids'];
+
+        // Empêcher le créateur de se sélectionner lui-même parmi les invités.
+        if (in_array($user->id, $participantIds, true)) {
+            throw ValidationException::withMessages([
+                'participant_ids' =>
+                    'Vous ne pouvez pas vous ajouter vous-même.',
+            ]);
+        }
+
+        // ==================================================
+        // 3. RECHERCHER UNE ORGANISATION COMMUNE
+        // ==================================================
+
+        // Une organisation est admissible si :
+        // - le créateur en est membre actif ;
+        // - tous les participants invités en sont également membres actifs.
+
+        // Nous ne prenons pas simplement la première organisation commune avec un seul participant.
+
+        $orgId = DB::table('org_members')
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->whereIn('org_id', function ($query) use ($participantIds) {
+                $query->select('org_id')
+                    ->from('org_members')
+                    ->whereIn('user_id', $participantIds)
+                    ->where('status', 'active')
+                    ->groupBy('org_id')
+                    ->havingRaw(
+                        'COUNT(DISTINCT user_id) = ?',
+                        [count($participantIds)]
+                    );
+            })
+            ->value('org_id');
+
+        // Refuser la création si aucun espace commun ne réunit tous les participants.
+        if (!$orgId) {
+            throw ValidationException::withMessages([
+                'participant_ids' =>
+                    'Tous les participants doivent appartenir '
+                    . 'à une même organisation active.',
+            ]);
+        }
+
+        // ==================================================
+        // 4. CRÉATION ATOMIQUE DU GROUPE
+        // ==================================================
+
+        DB::transaction(function () use (
+            $user,
+            $validated,
+            $participantIds,
+            $orgId
+        ) {
+
+            // Créer la conversation de groupe.
+
+            // direct_key reste NULL : cette clé est réservée aux conversations directes.
+            $conversation = Conversation::create([
+                'id' => (string) Str::uuid(),
+                'org_id' => $orgId,
+                'type' => 'group',
+                'visibility' => 'private',
+                'name' => trim($validated['name']),
+                'direct_key' => null,
+                'created_by' => $user->id,
+            ]);
+
+            // Préparer les données de la table pivot.
+            $members = [];
+
+            // Ajouter le créateur comme administrateur.
+            $members[$user->id] = [
+                'org_id' => $orgId,
+                'role' => 'admin',
+                'muted' => false,
+                'joined_at' => now(),
+            ];
+
+            // Ajouter les participants comme membres.
+            foreach ($participantIds as $participantId) {
+                $members[$participantId] = [
+                    'org_id' => $orgId,
+                    'role' => 'member',
+                    'muted' => false,
+                    'joined_at' => now(),
+                ];
+            }
+
+            // Enregistrer tous les participants.
+            $conversation->members()->attach($members);
+        });
+
+        // ==================================================
+        // 5. REDIRECTION VERS LES CONVERSATIONS
+        // ==================================================
+
+        return redirect()->route('conversations.index');
+    }
 
 
     public function storeMessage(Request $request, string $conversation)

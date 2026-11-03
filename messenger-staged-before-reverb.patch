@@ -1,0 +1,4 @@
+diff --git a/resources/js/Pages/Welcome.vue b/resources/js/Pages/Landing.vue
+similarity index 100%
+rename from resources/js/Pages/Welcome.vue
+rename to resources/js/Pages/Landing.vue

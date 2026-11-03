@@ -8,7 +8,7 @@
 // watch : surveiller les changements.
 // onUnmounted : nettoyer les abonnements à la fermeture du composant.
 import { computed, ref, watch, onUnmounted } from 'vue'
-import { Head, Link, router } from '@inertiajs/vue3'
+import { Head, Link, router, useForm } from '@inertiajs/vue3'
 
 
 // ======================================================
@@ -143,6 +143,85 @@ function createConversation() {
     onFinish: () => {
       creatingConversation.value = false
     },
+  })
+}
+
+
+// ======================================================
+// CRÉATION D'UNE DISCUSSION DE GROUPE
+// ======================================================
+
+// Affiche ou masque la fenêtre modale de création d'un groupe.
+const showNewGroup = ref(false)
+
+// useForm conserve les valeurs, les erreurs de validation Laravel
+// et l'état de soumission (processing) dans un objet réactif.
+const groupForm = useForm({
+  name: '',
+  participant_ids: [],
+})
+
+// Une discussion de groupe doit contenir au moins deux invités.
+// Le créateur est ajouté automatiquement par Laravel.
+const canCreateGroup = computed(() =>
+    groupForm.name.trim().length > 0 &&
+    groupForm.name.trim().length <= 100 &&
+    groupForm.participant_ids.length >= 2 &&
+    !groupForm.processing
+)
+
+// Retenir le nom pour ouvrir le nouveau groupe après la réponse Inertia.
+// La recherche ne sélectionne le groupe que si le nom correspond à une
+// seule conversation nouvellement créée ; aucun UUID n'est inventé.
+const existingGroupIds = ref([])
+
+function openNewGroup() {
+  groupForm.reset()
+  groupForm.clearErrors()
+  showNewGroup.value = true
+}
+
+function closeNewGroup() {
+  if (groupForm.processing) return
+  showNewGroup.value = false
+  groupForm.clearErrors()
+}
+
+function createGroup() {
+  if (!canCreateGroup.value) return
+
+  // Conserver les groupes existants pour repérer celui qui vient d'être créé.
+  existingGroupIds.value = conversations.value
+      .filter(conversation => conversation.type === 'group')
+      .map(conversation => String(conversation.id))
+
+  // Les clés envoyées correspondent exactement aux règles de storeGroup().
+  groupForm.transform(data => ({
+    name: data.name.trim(),
+    participant_ids: [...data.participant_ids],
+  })).post('/conversations/groups', {
+    preserveScroll: true,
+
+    onSuccess: page => {
+      const name = groupForm.name.trim()
+      const groups = (page.props.conversationsFromDb ?? []).filter(
+          conversation => conversation.type === 'group' &&
+              conversation.name === name &&
+              !existingGroupIds.value.includes(String(conversation.id))
+      )
+
+      // En cas d'ambiguïté, laisser l'utilisateur choisir dans la liste.
+      if (groups.length === 1) selectedId.value = groups[0].id
+
+      search.value = ''
+      showNewGroup.value = false
+      groupForm.reset()
+      groupForm.clearErrors()
+    },
+
+    // Les erreurs 422 de Laravel sont automatiquement stockées dans
+    // groupForm.errors : pas besoin d'une variable d'erreur séparée.
+    onError: () => {},
   })
 }
 
@@ -576,13 +655,24 @@ onUnmounted(() => {
             <h2 class="text-xs font-semibold uppercase tracking-widest text-slate-400">
               Conversations
             </h2>
-            <button
-                type="button"
-                @click="openNewConversation"
-                class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
-            >
-              + Nouvelle discussion
-            </button>
+            <div class="flex flex-wrap justify-end gap-2">
+              <!-- Discussion individuelle : comportement existant conservé. -->
+              <button
+                  type="button"
+                  @click="openNewConversation"
+                  class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+              >
+                + Discussion
+              </button>
+              <!-- Nouveau formulaire de groupe, distinct du formulaire individuel. -->
+              <button
+                  type="button"
+                  @click="openNewGroup"
+                  class="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-700"
+              >
+                + Groupe
+              </button>
+            </div>
           </div>
 
           <!-- Barre de recherche avec icône -->
@@ -1094,6 +1184,126 @@ onUnmounted(() => {
                 class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {{ creatingConversation ? 'Création...' : 'Créer la discussion' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ==================================================
+         FENÊTRE MODALE : NOUVELLE DISCUSSION DE GROUPE
+         ================================================== -->
+    <div
+        v-if="showNewGroup"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+        @click.self="closeNewGroup"
+        @keydown.esc="closeNewGroup"
+    >
+      <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-group-title"
+          class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+      >
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <h2 id="new-group-title" class="text-lg font-semibold text-slate-900">
+            Nouveau groupe
+          </h2>
+          <button
+              type="button"
+              aria-label="Fermer la fenêtre de groupe"
+              :disabled="groupForm.processing"
+              @click="closeNewGroup"
+              class="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- useForm envoie le formulaire à storeGroup() via Inertia. -->
+        <form @submit.prevent="createGroup" class="space-y-5">
+          <div>
+            <label for="group-name" class="mb-2 block text-sm font-medium text-slate-700">
+              Nom du groupe
+            </label>
+            <input
+                id="group-name"
+                v-model="groupForm.name"
+                type="text"
+                maxlength="100"
+                required
+                :disabled="groupForm.processing"
+                :aria-invalid="Boolean(groupForm.errors.name)"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                placeholder="Ex. Projet intégration"
+            />
+            <p v-if="groupForm.errors.name" role="alert" class="mt-1 text-sm text-red-600">
+              {{ groupForm.errors.name }}
+            </p>
+          </div>
+
+          <fieldset :disabled="groupForm.processing">
+            <legend class="mb-2 text-sm font-medium text-slate-700">
+              Inviter au moins deux participants
+            </legend>
+            <!-- availableUsers vient de Laravel : le serveur vérifiera à
+                 nouveau l'organisation commune à TOUS les participants. -->
+            <div class="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+              <label
+                  v-for="person in availableUsers"
+                  :key="person.id"
+                  class="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-50"
+              >
+                <!-- v-model sur un tableau ajoute ou retire automatiquement l'UUID. -->
+                <input
+                    v-model="groupForm.participant_ids"
+                    type="checkbox"
+                    :value="person.id"
+                    class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span class="text-sm text-slate-800">{{ person.display_name }}</span>
+              </label>
+              <p v-if="availableUsers.length === 0" class="p-2 text-sm text-slate-500">
+                Aucun utilisateur disponible dans votre organisation.
+              </p>
+            </div>
+            <p class="mt-2 text-xs text-slate-500">
+              {{ groupForm.participant_ids.length }} invité(s) sélectionné(s) — minimum 2.
+              Vous serez automatiquement administrateur du groupe.
+            </p>
+            <p
+                v-if="groupForm.errors.participant_ids"
+                role="alert"
+                class="mt-1 text-sm text-red-600"
+            >
+              {{ groupForm.errors.participant_ids }}
+            </p>
+            <!-- Laravel peut signaler un UUID particulier via participant_ids.0. -->
+            <p
+                v-for="([field, message]) in Object.entries(groupForm.errors).filter(([key]) => key.startsWith('participant_ids.'))"
+                :key="field"
+                role="alert"
+                class="mt-1 text-sm text-red-600"
+            >
+              {{ message }}
+            </p>
+          </fieldset>
+
+          <div class="flex justify-end gap-3">
+            <button
+                type="button"
+                :disabled="groupForm.processing"
+                @click="closeNewGroup"
+                class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+                type="submit"
+                :disabled="!canCreateGroup"
+                class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {{ groupForm.processing ? 'Création...' : 'Créer le groupe' }}
             </button>
           </div>
         </form>
