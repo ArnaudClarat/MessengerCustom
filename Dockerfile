@@ -52,9 +52,9 @@ RUN composer install \
 RUN npm ci
 
 # Create missing entry files if they don't exist
-RUN mkdir -p resources/css resources/js && \
-    touch resources/css/app.css && \
-    touch resources/js/app.js
+#RUN mkdir -p resources/css resources/js && \
+#    touch resources/css/app.css && \
+#    touch resources/js/app.js
 
 # Compilation Vite
 RUN npm run build
@@ -68,4 +68,5 @@ EXPOSE 80
 
 # Render exécutera les migrations au démarrage,
 # puis lancera Apache.
-CMD ["sh", "-c", "php artisan migrate --force && apache2-foreground"]
+# CMD ["sh", "-c", "php artisan migrate --force && apache2-foreground"]
+CMD ["apache2-foreground"]
