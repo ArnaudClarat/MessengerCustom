@@ -1,8 +1,4 @@
-﻿<?php
-
-// ============================================================
-// IMPORTATION DES CONTRÔLEURS ET DES FACADES
-// ============================================================
+<?php
 
 // Gestion de la connexion et de la déconnexion.
 use App\Http\Controllers\Auth\LoginController;
@@ -28,10 +24,6 @@ use Inertia\Inertia;
 // ============================================================
 
 // Accessible à tous, même sans connexion.
-//
-// GET /
-// Composant : resources/js/Pages/Landing.vue
-
 Route::get('/', function () {
 
     return Inertia::render('Landing');
@@ -43,11 +35,8 @@ Route::get('/', function () {
 // 2. AUTHENTIFICATION CLASSIQUE : CONNEXION ET INSCRIPTION
 // ============================================================
 
-// Le middleware 'guest' réserve ces routes aux visiteurs
-// qui ne sont pas encore authentifiés.
-//
-// Un utilisateur déjà connecté ne doit pas pouvoir ouvrir
-// une nouvelle session d'inscription depuis ce groupe.
+// Le middleware 'guest' réserve ces routes aux visiteurs qui ne sont pas encore authentifiés.
+// Un utilisateur déjà connecté ne doit pas pouvoir ouvrir une nouvelle session d'inscription depuis ce groupe.
 
 Route::middleware('guest')->group(function () {
 
@@ -56,7 +45,6 @@ Route::middleware('guest')->group(function () {
     // --------------------------------------------------------
 
     // GET /login
-    //
     // LoginController@show affiche Auth/Login.vue.
 
     Route::get('/login', [
@@ -70,7 +58,6 @@ Route::middleware('guest')->group(function () {
     // --------------------------------------------------------
 
     // POST /login
-    //
     // Laravel valide les identifiants et ouvre la session.
 
     Route::post('/login', [
@@ -84,14 +71,8 @@ Route::middleware('guest')->group(function () {
     // --------------------------------------------------------
 
     // GET /register
-    //
     // RegisterController@show affiche Auth/Register.vue.
-    //
-    // Cette page permet de saisir :
-    // - le nom complet ;
-    // - l'adresse e-mail ;
-    // - le mot de passe ;
-    // - la confirmation du mot de passe.
+    // Cette page permet de saisir le nom complet, l'adresse e-mail, le mot de passe, la confirmation du mot de passe.
 
     Route::get('/register', [
         RegisterController::class,
@@ -104,7 +85,7 @@ Route::middleware('guest')->group(function () {
     // --------------------------------------------------------
 
     // POST /register
-    //
+
     // RegisterController@store doit :
     // 1. Valider les données reçues.
     // 2. Vérifier l'unicité de l'adresse e-mail.
@@ -113,10 +94,9 @@ Route::middleware('guest')->group(function () {
     // 5. Authentifier le nouvel utilisateur.
     // 6. Régénérer la session.
     // 7. Rediriger vers le Dashboard.
-    //
+
     // IMPORTANT :
-    // L'inscription ne doit pas attribuer automatiquement
-    // une appartenance à une organisation existante.
+    // L'inscription ne doit pas attribuer automatiquement une appartenance à une organisation existante.
 
     Route::post('/register', [
         RegisterController::class,
@@ -131,19 +111,15 @@ Route::middleware('guest')->group(function () {
 // ============================================================
 
 // Connexion via Microsoft, Google ou GitHub.
-//
-// Le paramètre {provider} est limité aux trois fournisseurs
-// autorisés grâce à whereIn().
-
+// Le paramètre {provider} est limité aux trois fournisseurs autorisés grâce à whereIn().
+// Non implémenter => ne fonctionne pas!!!
 
 // ------------------------------------------------------------
 // 3.1. REDIRECTION VERS LE FOURNISSEUR OAUTH
 // ------------------------------------------------------------
 
 // GET /auth/{provider}/redirect
-//
 // Exemple : /auth/google/redirect
-//
 // Le middleware 'guest' exige que le visiteur soit déconnecté.
 
 Route::get('/auth/{provider}/redirect', [
@@ -160,9 +136,7 @@ Route::get('/auth/{provider}/redirect', [
 // ------------------------------------------------------------
 
 // GET /auth/{provider}/callback
-//
-// Le fournisseur renvoie l'utilisateur vers cette URL.
-// OAuthController vérifie la réponse et gère la session.
+// Le fournisseur renvoie l'utilisateur vers cette URL. OAuthController vérifie la réponse et gère la session.
 
 Route::get('/auth/{provider}/callback', [
     OAuthController::class,
@@ -177,10 +151,7 @@ Route::get('/auth/{provider}/callback', [
 // ------------------------------------------------------------
 
 // POST /auth/{provider}/link
-//
-// Permet à un utilisateur connecté d'associer un fournisseur
-// OAuth supplémentaire à son compte MessengerCustom.
-//
+// Permet à un utilisateur connecté d'associer un fournisseur OAuth supplémentaire à son compte MessengerCustom.
 // Le middleware 'auth' impose une connexion préalable.
 
 Route::post('/auth/{provider}/link', [
@@ -196,11 +167,8 @@ Route::post('/auth/{provider}/link', [
 // 4. ESPACE PROTÉGÉ : UTILISATEURS AUTHENTIFIÉS
 // ============================================================
 
-// Toutes les routes de ce groupe nécessitent une session
-// utilisateur valide.
-//
-// Le middleware 'auth' empêche les visiteurs non connectés
-// d'accéder aux conversations et aux messages.
+// Toutes les routes de ce groupe nécessitent une session utilisateur valide.
+// Le middleware 'auth' empêche les visiteurs non connectés d'accéder aux conversations et aux messages.
 
 Route::middleware('auth')->group(function () {
 
@@ -209,9 +177,7 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------------------------
 
     // GET /dashboard
-    //
-    // Affiche les informations de l'utilisateur connecté
-    // dans resources/js/Pages/Dashboard.vue.
+    // Affiche les informations de l'utilisateur connecté dans resources/js/Pages/Dashboard.vue.
 
     Route::get('/dashboard', function () {
 
@@ -234,10 +200,7 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------------------------
 
     // GET /conversations
-    //
-    // ConversationController@index récupère les conversations
-    // auxquelles appartient l'utilisateur connecté.
-    //
+    // ConversationController@index récupère les conversations auxquelles appartient l'utilisateur connecté.
     // Les données sont ensuite transmises au composant Vue.js.
 
     Route::get('/conversations', [
@@ -251,7 +214,6 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------------------------
 
     // POST /conversations
-    //
     // ConversationController@store :
     // - valide le destinataire ;
     // - vérifie l'organisation commune ;
@@ -269,7 +231,6 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------------------------
 
     // POST /conversations/groups
-    //
     // ConversationController@storeGroup :
     // - valide le nom du groupe ;
     // - exige au moins deux participants invités ;
@@ -288,15 +249,12 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------------------------
 
     // POST /conversations/{conversation}/messages
-    //
     // {conversation} représente l'UUID de la conversation.
-    //
     // ConversationController@storeMessage :
     // - vérifie que l'utilisateur appartient à la conversation ;
     // - valide le contenu du message ;
     // - enregistre le message ;
     // - déclenche l'événement MessageSent.
-    //
     // Laravel Reverb permet ensuite sa diffusion en temps réel.
 
     Route::post('/conversations/{conversation}/messages', [
@@ -310,7 +268,7 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------------------------
 
     // POST /logout
-    //
+
     // LoginController@logout :
     // - ferme la session authentifiée ;
     // - invalide l'ancienne session ;
