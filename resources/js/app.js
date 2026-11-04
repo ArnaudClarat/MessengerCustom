@@ -1,5 +1,4 @@
-// Importer la configuration WebSocket.
-// Echo ne sera initialisé que si Reverb est configuré.
+// Importer la configuration WebSocket.Echo ne sera initialisé que si Reverb est configuré.
 import './echo';
 
 import { createApp, h } from 'vue';
