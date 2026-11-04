@@ -47,16 +47,15 @@ watch(
 // Contient le texte saisi dans la barre de recherche.
 const search = ref('')
 
-// Identifiant de la conversation sélectionnée.
-// Sélectionner la première conversation si elle existe.
+// Identifiant de la conversation sélectionnée. Sélectionner la première conversation si elle existe.
 // Sur mobile, le bouton Retour permet d'afficher la liste.
 const selectedId = ref(conversations.value[0]?.id ?? null)
 
 // Prévu pour la saisie lors de l'activation future de l'envoi.
 const newMessage = ref('')
 
-// Lors d'une actualisation Inertia, conserver la conversation ouverte
-// si elle existe encore. Si elle a disparu, sélectionner la première.
+// Lors d'une actualisation Inertia, conserver la conversation ouverte si elle existe encore.
+// Si elle a disparu, sélectionner la première.
 // Une sélection null (retour à la liste sur mobile) reste volontairement null.
 watch(conversations, (items) => {
   if (selectedId.value === null) return
@@ -81,8 +80,8 @@ const creatingConversation = ref(false)
 const creationError = ref('')
 
 // Mémoriser le destinataire pour sélectionner la discussion après actualisation.
-// La sélection par nom est adaptée à la démonstration ; pour une identification
-// garantie, Laravel devra retourner l'UUID de la conversation créée.
+// La sélection par nom est adaptée à la démonstration pour une identification garantie,
+// Laravel devra retourner l'UUID de la conversation créée.
 const pendingRecipientName = ref(null)
 
 function openNewConversation() {
@@ -154,8 +153,7 @@ function createConversation() {
 // Affiche ou masque la fenêtre modale de création d'un groupe.
 const showNewGroup = ref(false)
 
-// useForm conserve les valeurs, les erreurs de validation Laravel
-// et l'état de soumission (processing) dans un objet réactif.
+// useForm conserve les valeurs, les erreurs de validation Laravel et l'état de soumission (processing) dans un objet réactif.
 const groupForm = useForm({
   name: '',
   participant_ids: [],
@@ -171,8 +169,7 @@ const canCreateGroup = computed(() =>
 )
 
 // Retenir le nom pour ouvrir le nouveau groupe après la réponse Inertia.
-// La recherche ne sélectionne le groupe que si le nom correspond à une
-// seule conversation nouvellement créée ; aucun UUID n'est inventé.
+// La recherche ne sélectionne le groupe que si le nom correspond à une seule conversation nouvellement créée, aucun UUID n'est inventé.
 const existingGroupIds = ref([])
 
 function openNewGroup() {
