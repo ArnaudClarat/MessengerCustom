@@ -101,9 +101,35 @@ RUN composer install \
 # npm ci utilise les versions du package-lock.json.
 RUN npm ci
 
+# 12bis. VARIABLES REVERB DISPONIBLES AU BUILD (VITE)
+# Les variables import.meta.env.VITE_* sont figées lors du
+# « npm run build » : elles doivent donc exister à la COMPILATION,
+# pas seulement au runtime.
+#
+# Render ne transmet une variable d'environnement comme build arg
+# QUE si elle est explicitement déclarée via ARG ici. On les
+# redéclare ensuite en ENV pour que Vite les lise pendant le build.
+#
+# À configurer côté Render (Environment) :
+#   VITE_REVERB_APP_KEY, VITE_REVERB_HOST, VITE_REVERB_PORT, VITE_REVERB_SCHEME
+# Valeurs typiques en prod (Reverb derrière TLS) :
+#   VITE_REVERB_HOST=<domaine-du-service-reverb>
+#   VITE_REVERB_PORT=443
+#   VITE_REVERB_SCHEME=https
+ARG VITE_REVERB_APP_KEY
+ARG VITE_REVERB_HOST
+ARG VITE_REVERB_PORT
+ARG VITE_REVERB_SCHEME
+
+ENV VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY}
+ENV VITE_REVERB_HOST=${VITE_REVERB_HOST}
+ENV VITE_REVERB_PORT=${VITE_REVERB_PORT}
+ENV VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
+
 # 13. COMPILATION DES ASSETS DE PRODUCTION
 # Compile Vue.js, Inertia.js et les styles avec Vite.
 # Les fichiers compilés sont placés dans public/build.
+# À ce stade, les VITE_REVERB_* ci-dessus sont intégrées au bundle JS.
 RUN npm run build
 
 # 14. SUPPRESSION DU MARQUEUR VITE DE DÉVELOPPEMENT
@@ -144,4 +170,22 @@ EXPOSE 80
 #
 # Les migrations devront être exécutées séparément,
 # après vérification du schéma de production.
+#
+# ------------------------------------------------------------
+# DEUX RÔLES À PARTIR DE LA MÊME IMAGE
+# ------------------------------------------------------------
+# 1) Service WEB (ce CMD par défaut) : Apache sert Laravel/Inertia.
+#
+# 2) Service REVERB (serveur WebSocket temps réel) : déployer un
+#    SECOND service Render à partir de cette même image, en
+#    surchargeant la commande de démarrage (« Docker Command ») par :
+#
+#        php artisan reverb:start --host=0.0.0.0 --port=$PORT
+#
+#    Render injecte $PORT ; Reverb doit écouter dessus et sur
+#    0.0.0.0 pour être joignable. Le front (VITE_REVERB_HOST/PORT/
+#    SCHEME) doit pointer vers le domaine public de CE service.
+#
+#    MessageSent utilise ShouldBroadcastNow (diffusion synchrone) :
+#    aucun worker de queue (queue:work) n'est nécessaire.
 CMD ["apache2-foreground"]
