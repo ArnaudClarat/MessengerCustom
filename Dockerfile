@@ -35,12 +35,16 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 # mbstring : traitement des chaînes de caractères.
 # xml : manipulation des documents XML.
 # zip : prise en charge des archives ZIP.
+# pcntl : gestion des signaux (SIGINT/SIGTERM) requise par
+#         « php artisan reverb:start ». Sans elle, le service
+#         Reverb plante avec « Undefined constant SIGINT ».
 RUN docker-php-ext-install \
     pdo \
     pdo_pgsql \
     mbstring \
     xml \
-    zip
+    zip \
+    pcntl
 
 # 5. ACTIVATION DE MOD_REWRITE
 # Apache utilise ce module pour transmettre les URL
